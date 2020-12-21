@@ -1,0 +1,128 @@
+---
+title: "Dodgers promotion night predictive analysis"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+```{r}
+library(lattice)  # Graphics Package
+library(ggplot2) # Graphical Package
+
+#Create a dataframe with Dodgers Data
+DodgersData <- read.csv("/Users/tthekkum/Documents/LnD/BV/630_Predective_Analytics/week3/dodgers.csv")
+```
+```{r}
+str(DodgersData)
+```
+```{r}
+head(DodgersData, 10)
+```
+
+```{r}
+# Evaluate the factor levels for day_of_week
+# levels(DodgersData$day_of_week)
+
+# Reorder the factor levels for day_of_week
+DodgersData$day_of_week <- factor(DodgersData$day_of_week, levels = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
+
+# Evaluate the factor levels for month
+# levels(DodgersData$month)
+
+# Reorder the factor levels for month
+DodgersData$month <- factor(DodgersData$month, levels = c("APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT"))
+# First 10 rows of the data frame
+head(DodgersData, 10)
+```
+```{r}
+## Box plot to explore attendance by day of week
+plot(DodgersData$day_of_week, DodgersData$attend / 1000, main = "Dodgers Attendence By Day Of Week", xlab = "Day of Week", ylab = "Attendance (thousands)", col = "violet", las = 1)
+```
+
+```{r}
+## Box plot to explore attendance by Month
+plot(DodgersData$month, DodgersData$attend / 1000, main = "Dodgers Attendence By Month", xlab = "Month", 
+ylab = "Attendance (thousands)", col = "light blue", las = 1)
+```
+
+```{r}
+#Evaluate attendance by weather
+ggplot(DodgersData, aes(x=temp, y=attend/1000, color=fireworks)) + 
+        geom_point() + 
+        facet_wrap(day_night~skies) + 
+        ggtitle("Dodgers Attendance By Temperature By Time of Game and Skies") +
+        theme(plot.title = element_text(lineheight=3, face="bold", color="black", size=10)) +
+        xlab("Temperature (Degree Farenheit)") +
+        ylab("Attendance (Thousands)")
+```
+
+```{r}
+#Strip Plot of Attendance by opponent or visiting team
+ggplot(DodgersData, aes(x=attend/1000, y=opponent, color=day_night)) + 
+        geom_point() + 
+        ggtitle("Dodgers Attendance By Opponent") +
+        theme(plot.title = element_text(lineheight=3, face="bold", color="black", size=10)) +
+        xlab("Attendance (Thousands)") +
+        ylab("Opponent (Visiting Team)")
+```
+```{r}
+# Create a model with the bobblehead variable entered last
+my.model <- {attend ~ month + day_of_week + bobblehead}
+
+# Prepare a Training and Test dataset
+
+# Reseed for repeatability
+set.seed(1234)
+
+training_test <- c(rep(1, trunc((2/3)*nrow(DodgersData))), rep(2, trunc((1/3)*nrow(DodgersData))))
+
+# sample(training_test)
+
+# Create a variable in DodgersData data frame to identify Test and Training row
+DodgersData$Training_Test <- sample(training_test)
+
+DodgersData$Training_Test <- factor(DodgersData$Training_Test, levels = c(1, 2), labels = c("TRAIN", "TEST"))
+
+
+DodgersData.Train <- subset(DodgersData, Training_Test == "TRAIN")
+DodgersData.Test <- subset(DodgersData, Training_Test == "TEST")
+
+#head(DodgersData.Train)
+#head(DodgersData.Test)
+
+# Fit model to training set
+train.model.fit <- lm(my.model, data = DodgersData.Train)
+
+# Predict from Training Set
+DodgersData.Train$Predict_Attend <- predict(train.model.fit)
+
+# Evaluate The Fitted Model on the Test Set
+DodgersData.Test$Predict_Attend <- predict(train.model.fit, newdata = DodgersData.Test)
+
+#round(cor(DodgersData.Test$attend, DodgersData.Test$Predict_Attend)^2, digits=3)
+
+# compute the proportion of response variance accounted for when predicting Test Data
+cat("\n","Proportion of Test Set Variance Accounted for: ", round(cor(DodgersData.Test$attend, DodgersData.Test$Predict_Attend)^2, digits=3), "\n", sep="")
+```
+```{r}
+DodgersData.Training_Test <- rbind(DodgersData.Train, DodgersData.Test)
+
+ggplot(DodgersData.Training_Test, aes(x=attend/1000, y=Predict_Attend/1000, color=bobblehead)) + 
+        geom_point() + 
+        geom_line(data = data.frame(x = c(25,60), y = c(25,60)), aes(x = x, y = y), colour = "red") +
+        facet_wrap(~Training_Test) +
+        #geom_smooth(method = "lm", se=FALSE) +
+        ggtitle("Regression Model Performance : Bobblehead and Attendance") +
+        theme(plot.title = element_text(lineheight=3, face="bold", color="black", size=10)) +
+        xlab("Actual Attendance (Thousands)") +
+        ylab("Predicted Attendance (Thousands)")
+```
+```{r}
+# use the full data set to obtain an estimate of the increase in
+# attendance due to bobbleheads, controlling for other factors
+my.model.fit <- lm(my.model, data = DodgersData)  # use all available data
+print(summary(my.model.fit))
+```
+
+As per this Tuesday of June will be the best time for giving bobblehead as a prpomotion to increase attendance.
